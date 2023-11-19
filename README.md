@@ -53,9 +53,9 @@ Options:
 
 The latter creates following svg images:
 
-<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_positionPlot.svg>
-<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_velocityPlot.svg>
-<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_hitsPlot.svg>
-<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_scatterEffPlot.svg>
-<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_scatterPlot.svg>
-<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_throughputPlot.svg>
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_positionPlot.svg">
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_velocityPlot.svg">
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_hitsPlot.svg">
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_scatterEffPlot.svg">
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_scatterPlot.svg">
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_throughputPlot.svg">
