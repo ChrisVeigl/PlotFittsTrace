@@ -1,9 +1,9 @@
 # PlotFittsTrace
  
-This application generates visualisations from [https://www.yorku.ca/mack/FittsLawSoftware/doc/GoFitts.html](GoFitts) .sd3 trace data files 
-(for more information see: https://www.yorku.ca/mack/FittsLawSoftware/,  https://www.yorku.ca/mack/FittsLawSoftware/doc/GoFitts.html)
+This application generates visualisations from [GoFitts](https://www.yorku.ca/mack/FittsLawSoftware/doc/GoFitts.html) .sd3 trace data files 
+(for more information see: https://www.yorku.ca/mack/FittsLawSoftware/)
   
-The source code of this application is based upon the [http://simonwallner.at/ext/fitts/](interactive visualisation of Fitts' Law) by Simon Wallner:
+The source code of this application is based upon the [interactive visualisation of Fitts' Law](http://simonwallner.at/ext/fitts/) by Simon Wallner:
 https://github.com/SimonWallner/uit-fitts-law
 
 The following changes have been applied to the original source code:
@@ -19,7 +19,7 @@ The following changes have been applied to the original source code:
 
 ## Installation
 
-  * a current version of [https://nodejs.org/en/download](node.js) is required (v21.1 was used, older versions might work)
+  * a current version of [node.js](https://nodejs.org/en/download) is required (v21.1 was used, older versions might work)
   * run `npm install` in the source folder
   
   
@@ -47,5 +47,7 @@ Options:
 ## Examples
 
   `node plotFittsTrace.mjs myfile.sd3 -c -a=100`  processes single sd3 file, but only trials with amplitude 100, adding captions to axis 
+
+
   `node plotFittsTrace.mjs demo --smoothPos 1 -g`  processes all files in the folder demo and its subfolders, avoiding any smoothing of the position plot data, showing colored groups
 
