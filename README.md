@@ -51,3 +51,11 @@ Options:
 
   `node plotFittsTrace.mjs demo --smoothPos 1 -g`  processes all files in the folder demo and its subfolders, avoiding any smoothing of the position plot data, showing colored groups
 
+The latter creates following svg images:
+
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_positionPlot.svg>
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_velocityPlot.svg>
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_hitsPlot.svg>
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_scatterEffPlot.svg>
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_scatterPlot.svg>
+<img src="./demo/FittsTask-P50-C00-S00-G00-2D-MB-B02_throughputPlot.svg>
