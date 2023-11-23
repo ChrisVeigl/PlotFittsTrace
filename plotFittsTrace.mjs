@@ -112,7 +112,6 @@ function prepareSD3File(inputFilename) {
 
 function processNewDataRow(fn,row) 
 {
-	// console.log("process row:",row);
 	if (row.t_x_y == 't=') {
 		// console.log('found time column, start building movement data array!');
 		actColumn=0;
@@ -151,7 +150,7 @@ function processNewDataRow(fn,row)
 		if (add)
 			data.push({ A:parseInt(row.A), W:parseInt(row.W), 
 					from_x:parseInt(row.from_x), from_y:parseInt(row.from_y),
-		            to_x:parseInt(row.to_x),to_y:parseInt(row.to_y),
+		            to_x:parseInt(row.to_x),to_y:parseInt(row.to_y), trial:parseInt(row.Trial),
 					dp:currentPath
 				 });
 		currentPath=[];
@@ -162,33 +161,49 @@ function processNewDataRow(fn,row)
 
 function createPlots(filePath) 
 {
-	var groups = [];
+	// console.log ("Creating plots, trialdata len = ",data.length);
+	
+	var trialGroups = [];
+	var lastDx=0;
 	for (let t=0;t<data.length;t++) {
 
 		var actPath = data[t].dp			
 		var pathLen = actPath.length;
-		// var fromPoint = {x: data[t].from_x, y:data[t].from_y}; // the center of the displayed starting point
-		var startPoint = {x: actPath[0].x, y: actPath[0].y};      // the actual starting point of the movement (the last hit point)													  
-		var targetPoint = {x: data[t].to_x,   y:data[t].to_y};    // the center of the displayed target point
-		var hitPoint = {x: actPath[pathLen-1].x, y: actPath[pathLen-1].y};
+		var fromPoint = {x: data[t].from_x, y:data[t].from_y}; // the center of the displayed starting point
+		var targetPoint = {x: data[t].to_x, y:data[t].to_y};    // the center of the displayed target point
+		var startPoint =  {x: actPath[0].x, y: actPath[0].y};      // the actual starting point of the movement (the last hit point)													  
+		var hitPoint = {x: actPath[pathLen-1].x, y: actPath[pathLen-1].y};  // the selection point of the current trial
 		
-		var trialTime = actPath[pathLen-1].t;          // timestamp of the last point (hitPoint) is the trial duration
-		var dist = distance(targetPoint, startPoint);  // TBD: startPoint or fromPoint?
-		var id = shannon(dist, data[t].W);
+		var trialTime = actPath[pathLen-1].t;         // timestamp of the last point (hitPoint) is the trial duration
+													  // TBD: what about dwell times?
+		var dist = distance(targetPoint, fromPoint);  // theoretical distance (amplitude) Index of Difficulty of the given task
+		var id = shannon(dist, data[t].W); 			  // theoretical Index of Difficulty of the given task
 
-		// TBD: handle missed targets
+		// TBD: handle missed targets in statistics / error rate
 		if (distance(hitPoint,targetPoint) > data[t].W) {
 			missed += 1;
 		}
 		else {
 			hits += 1;
 		}
-		// TBD: check if accuracy correction was applied correctly
-		
-		console.log ("Trial ",t,": A=",data[t].A,", W=",data[t].W, ", from_x=", startPoint.x,", from_y=",startPoint.y, ", to_x=", targetPoint.x,", to_y=",targetPoint.y, ", trialTime=",trialTime, ", distance=",dist.toFixed(1),", ID=",id.toFixed(2)); 
+	
+		console.log ("#",t ,"-trial",data[t].trial,": A=",data[t].A,", W=",data[t].W);
+		console.log ("  from_x =", fromPoint.x,", from_y =",fromPoint.y, ", to_x =", targetPoint.x,", to_y =",targetPoint.y);
+		console.log ("  start_x=",startPoint.x,", start_y=",startPoint.y,", hit_x=", hitPoint.x,", hit_y=",hitPoint.y);
+		console.log ("  trialTime=",trialTime, ", distance=",dist.toFixed(1),", ID=",id.toFixed(2)); 
 		// for (let i=0;i<pathLen;i++) console.log ("DataPoint ",i," = (",actPath[i].x,"/",actPath[i].y,"/",actPath[i].t,")");		
-		
 
+		// perform adjustment for accurracy (see eg. https://www.yorku.ca/mack/FittsLawSoftware/doc/Throughput.html)
+		if (data[t].trial == 0) lastDx=0;   // reset dx buffer if a new trail sequence starts!
+		var a=distance(fromPoint, targetPoint);
+		var b=distance(hitPoint, targetPoint);
+		var c=distance(fromPoint, hitPoint);
+		var dx=(c*c -  b*b - a*a) / (2.0 * a );  
+		var Ae=a + dx + lastDx;             // effective amplitude
+		lastDx=dx;
+		console.log(  "  dx=",dx,", Ae=",a + dx, ", AeCorr=",Ae);
+				
+		// now draw data into SVGs
 		xPosAvg.clear();
 		yPosAvg.clear();
 		velAvg.clear();
@@ -200,18 +215,6 @@ function createPlots(filePath)
 			.attr('cy', plotScatterSVG.scaleY(trialTime))
 			.style('opacity', options.opacity)
 			.attr('r', 3)
-
-		var qHit = project(startPoint, targetPoint, hitPoint);
-		var hitDeviationX = distance(qHit, targetPoint) * sign(qHit.t - 1);
-		var hitDeviationY = distance(qHit, hitPoint) * isLeft(startPoint, targetPoint, hitPoint);
-
-		plotHitsSVG.group.append('circle')
-			.attr('class', 'hit')
-			.attr('cx', plotHitsSVG.dimension.innerWidth / data[t].W  * hitDeviationX)
-			.attr('cy', plotHitsSVG.dimension.innerHeight / data[t].W  * hitDeviationY)
-			.attr('r', 3)
-			.style('fill', 'red')
-			.style('opacity', 1)
 		
 		// process movement path 
 		var last = { x: 0, y: 0, t: 0, v: 0};
@@ -221,7 +224,7 @@ function createPlots(filePath)
 			var x = distance(q, startPoint) * sign(q.t);  // note that q.t is not the time here but indicates if actPathPoint is located before startPoint or after targetPoint!
 			var y = distance(q, actPathPoint) * isLeft(startPoint, targetPoint, actPathPoint);
 
-			// TBD: verify the effect of averaging here!
+			// TBD: describe effect of averaging for movement / velocity charts 
 			x=xPosAvg.process(x);
 			y=yPosAvg.process(y);
 			
@@ -232,7 +235,6 @@ function createPlots(filePath)
 			else
 				var speed = 0;
 			
-			// TBD: clarify the effect of averaging here!
 			speed=velAvg.process(speed);
 					
 			var opacity=PLOTPOS_OPACITY;
@@ -263,48 +265,83 @@ function createPlots(filePath)
 			last.t = actPathPoint.t;
 			last.v = speed;
 		}
-		
-		// create ID-grouped lists
-		var groupID = data[t].A.toString() + '_' + data[t].W.toString();
-		//var groupID = data[t].W.toString();
-		if (!groups[groupID]) {
-			groups[groupID] = [];
-			console.log ("Created group: "+groupID);
-		}
 
-		var realDistance = distance(startPoint, hitPoint); // use real distance here.
-		var projectedHitOffsetX = distance(qHit, targetPoint) * sign(qHit.t - 1);
-		var projectedHitOffsetY = hitDeviationY;
+		// TBD: check implications & differences of MacKenzie / Wallner implementations!
+
+		// var Ae = distance(startPoint, hitPoint); // use real distance here.
+		// var qHit = project(startPoint, targetPoint, hitPoint);
+		// var dx = distance(qHit, targetPoint) * sign(qHit.t - 1);
+		// var dy = distance(qHit, hitPoint) * isLeft(startPoint, targetPoint, hitPoint);
+
+		var qHit = project(fromPoint, targetPoint, hitPoint);
+		var dy = distance(qHit, hitPoint) * isLeft(fromPoint, targetPoint, hitPoint);
+
+		plotHitsSVG.group.append('circle')
+			.attr('class', 'hit')
+			.attr('cx', plotHitsSVG.dimension.innerWidth / data[t].W  * dx)
+			.attr('cy', plotHitsSVG.dimension.innerHeight / data[t].W  * dy)
+			.attr('r', 3)
+			.style('fill', 'red')
+			.style('opacity', 1)		
 		
-		groups[groupID].push({ startPoint: startPoint, targetPoint:targetPoint, hitPoint: hitPoint, 
-							   trialTime: trialTime, realDistance: realDistance, 
-							   projectedHitOffsetX: projectedHitOffsetX, projectedHitOffsetY:projectedHitOffsetY
-							});		
+		// create trialGroups for sequences with same A/W condition 
+		var groupID = data[t].A.toString() + '_' + data[t].W.toString();
+		if (!trialGroups[groupID]) {
+			trialGroups[groupID] = [];
+			// console.log ("Created group "+groupNum+": "+groupID);
+		}
+		
+		trialGroups[groupID].push({ startPoint: startPoint, targetPoint:targetPoint, hitPoint: hitPoint, 
+							   trialTime: trialTime, Ae: Ae, dx: dx, dy:dy});		
 	}
 
 	// calculate effective values 
 	var effectiveData = [];
-	for (var group in groups) {
-		if (groups[group].length < 3) { // exclude groups with length < 3
+	var throughputs = [];
+	
+	for (var group in trialGroups) {
+		if (trialGroups[group].length < 3) { // exclude trialGroups with length < 3
 			console.log ("Ignore group "+group+" due to insufficient size!");
 			continue;
 		}
-			
-		var xEffective = 4.133 * Math.sqrt(variance(groups[group], function(d) { return d.projectedHitOffsetX; }))
-		var yEffective = 4.133 * Math.sqrt(variance(groups[group], function(d) { return d.projectedHitOffsetY; }))
-		var dEffective = mean(groups[group], function(d) { return d.realDistance; });
 		
-		for (var i = 0; i < groups[group].length; i++) {
-			var datum = groups[group][i];
-			var We = Math.min(xEffective, yEffective); // SMALLER-OF model (MacKenzie, Buxton 92)
-			var De = dEffective;
-			datum.IDe = shannon(De, We);
-			datum.throughput = 1000 * (datum.IDe/datum.trialTime);
-			datum.groupNum = group
-			effectiveData.push(datum);
+		
+		// TBD: not sure about this strategy ... ("smaller-of"-model was used for rectagular targets ...)
+		// var xEffective = 4.133 * Math.sqrt(variance(trialGroups[group], function(d) { return d.dy; }))
+		// var yEffective = 4.133 * Math.sqrt(variance(trialGroups[group], function(d) { return d.dx; }))
+		// var We = Math.min(xEffective, yEffective); // SMALLER-OF model (MacKenzie, Buxton 92)
+		
+		var sdx= Math.sqrt(variance(trialGroups[group], function(d) { return d.dx; }));   // standard deviation of dx in group
+		var We = 4.133 * sdx;               // effective target width
+		var tMean = mean(trialGroups[group], function(d) { return d.trialTime; });  // averaged trial time
+		var aeMean = mean(trialGroups[group], function(d) { return d.Ae; });		// averaged effective amplitude (distance)
+		var IDe=shannon(aeMean, We);  		// effective Index of difficulty
+		var TP=1000 * (IDe/tMean);		    // troughput for group
+		
+		console.log ("\n--------- Group "+ group + " results ---------");
+		console.log ("aeMean=", aeMean);
+		console.log ("sdx=", sdx);
+		console.log ("We=", We);
+		console.log ("IDe=", IDe);
+		console.log ("mtMean=", tMean);
+		console.log ("TP=", TP);
+		throughputs.push(TP);
+		
+		for (var i = 0; i < trialGroups[group].length; i++) {   // update IDe and TP for group members
+			var actTrial = trialGroups[group][i];
+			actTrial.groupNum = group
+			actTrial.IDe = IDe;
+			actTrial.throughput = TP;
+			effectiveData.push(actTrial);
 		}
 	}
 
+	// calculate grand mean of Throughput
+	const average = arr => arr.reduce( ( p, c ) => p + c, 0 ) / arr.length;
+  	const TPe = average(throughputs);
+
+	console.log ("=============================\nOverall Throughput =",TPe);
+	
 	drawEffectivePlots(effectiveData);
 	augmentHitsPlot();
 
@@ -345,7 +382,7 @@ function createPlots(filePath)
 	</html>`;
 
 	fs.writeFileSync(fileName+'_SVGView.html',htmlContent);
-	console.log('Html page created!');
+	console.log('Overview html-page created!');
 }
 
 function stripFilename(fileName) {
@@ -829,7 +866,7 @@ program
   .option('-p, --smoothPos [samples]', 'number of samples for smoothing position plots', '2')
   .option('-v, --smoothVel [samples]', 'number of samples for smoothing velocity plots', '4')
   .option('-o, --opacity [opacity]', 'opacity for ID scatter plots (0.5-1.0)', '0.8')
-  .option('-g, --group', 'indicate groups of effective IDs by color', false)
+  .option('-g, --group', 'color-indicate trail groups in IDeff scatter plot', false)
   .option('-c, --captions', 'add axis captions', false)
   .option('-a, --amplitude [amplitude]', 'limit to trials with given amplitude', '0')
   .option('-w, --width [width]', 'limit to trials with given width', '0')
