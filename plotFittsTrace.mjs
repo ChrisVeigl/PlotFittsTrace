@@ -44,8 +44,8 @@ const FIRST_DATA_COLUMN=17
 var actColumn=0
 var currentPath = []
 var data = [];
-var missed=0;
-var hits=0;
+var missed_total=0;
+var hits_total=0;
 var plotPositionSVG = null;
 var plotVelocitySVG = null;
 var plotScatterSVG =null;
@@ -60,8 +60,9 @@ function initData() {
 	actColumn=0
 	currentPath = []
 	data = [];
-	hits=0;
-	missed=0;
+	hits_total=0;
+	missed_total=0;
+	
 	plotPositionSVG = initSVG ( makeDimension(600, 500, 30, 30, 30, 50),  
 									{ domain:[-50, 450], description: 'Path distance (px)', ticks:7},
 									{ domain:[-150, 150], description: 'Deviation from straight path (px)', ticks:6});
@@ -76,7 +77,7 @@ function initData() {
 									{ domain:[MAX_TIME, 0], description: 'time in ms', ticks:6});
 
 	plotScatterEffSVG = initSVG ( makeDimension(500, 400, 30, 30, 30, 50),  
-									{ domain:[0.5, 6.5], description: 'IDeff - Effective Index of Difficulty', ticks:12},
+									{ domain:[0, 7], description: 'IDeff - Effective Index of Difficulty', ticks:12},
 									{ domain:[MAX_TIME, 0], description: 'time in ms', ticks:10});
 
 	plotHitsSVG = initSVG (makeDimension(300, 300, 50, 50, 50, 50), null, null, true);  // centered SVG
@@ -179,22 +180,28 @@ function createPlots(filePath)
 		var dist = distance(targetPoint, fromPoint);  // theoretical distance (amplitude) Index of Difficulty of the given task
 		var id = shannon(dist, data[t].W); 			  // theoretical Index of Difficulty of the given task
 
-		// TBD: handle missed targets in statistics / error rate
+		// count overall missed targets
+		var missed_this=0;
 		if (distance(hitPoint,targetPoint) > data[t].W) {
-			missed += 1;
+			missed_total += 1;
+			missed_this=1;
 		}
 		else {
-			hits += 1;
+			hits_total += 1;
 		}
 	
 		console.log ("#",t ,"-trial",data[t].trial,": A=",data[t].A,", W=",data[t].W);
 		console.log ("  from_x =", fromPoint.x,", from_y =",fromPoint.y, ", to_x =", targetPoint.x,", to_y =",targetPoint.y);
-		console.log ("  start_x=",startPoint.x,", start_y=",startPoint.y,", hit_x=", hitPoint.x,", hit_y=",hitPoint.y);
+		console.log ("  start_x=",startPoint.x,", start_y=",startPoint.y,", hit_x=", hitPoint.x,", hit_y=",hitPoint.y, "missed=",missed_this);
 		console.log ("  trialTime=",trialTime, ", distance=",dist.toFixed(1),", ID=",id.toFixed(2)); 
 		// for (let i=0;i<pathLen;i++) console.log ("DataPoint ",i," = (",actPath[i].x,"/",actPath[i].y,"/",actPath[i].t,")");		
 
+		// reset dx buffer if a new trail sequence starts!
+		if (data[t].trial == 0) {
+			lastDx=0;
+		}
+
 		// perform adjustment for accurracy (see eg. https://www.yorku.ca/mack/FittsLawSoftware/doc/Throughput.html)
-		if (data[t].trial == 0) lastDx=0;   // reset dx buffer if a new trail sequence starts!
 		var a=distance(fromPoint, targetPoint);
 		var b=distance(hitPoint, targetPoint);
 		var c=distance(fromPoint, hitPoint);
@@ -288,10 +295,10 @@ function createPlots(filePath)
 		var groupID = data[t].A.toString() + '_' + data[t].W.toString();
 		if (!trialGroups[groupID]) {
 			trialGroups[groupID] = [];
-			// console.log ("Created group "+groupNum+": "+groupID);
+			// console.log ("Created group " + groupNum + " for sequences with condition ": "+groupID);
 		}
 		
-		trialGroups[groupID].push({ startPoint: startPoint, targetPoint:targetPoint, hitPoint: hitPoint, 
+		trialGroups[groupID].push({ startPoint: startPoint, targetPoint:targetPoint, hitPoint: hitPoint, missed: missed_this,
 							   trialTime: trialTime, Ae: Ae, dx: dx, dy:dy});		
 	}
 
@@ -316,6 +323,7 @@ function createPlots(filePath)
 		var tMean = mean(trialGroups[group], function(d) { return d.trialTime; });  // averaged trial time
 		var aeMean = mean(trialGroups[group], function(d) { return d.Ae; });		// averaged effective amplitude (distance)
 		var IDe=shannon(aeMean, We);  		// effective Index of difficulty
+		var missed_group=sum(trialGroups[group], function(d) { return d.missed; })
 		var TP=1000 * (IDe/tMean);		    // troughput for group
 		
 		console.log ("\n--------- Group "+ group + " results ---------");
@@ -323,6 +331,7 @@ function createPlots(filePath)
 		console.log ("sdx=", sdx);
 		console.log ("We=", We);
 		console.log ("IDe=", IDe);
+		console.log ("Error rate =", missed_group/trialGroups[group].length * 100, "%");
 		console.log ("mtMean=", tMean);
 		console.log ("TP=", TP);
 		throughputs.push(TP);
@@ -340,7 +349,9 @@ function createPlots(filePath)
 	const average = arr => arr.reduce( ( p, c ) => p + c, 0 ) / arr.length;
   	const TPe = average(throughputs);
 
-	console.log ("=============================\nOverall Throughput =",TPe);
+	console.log ("=====================================");
+	console.log ("total Error rate =", missed_total/(hits_total+missed_total) * 100, "%");
+	console.log ("Overall Throughput =",TPe);
 	
 	drawEffectivePlots(effectiveData);
 	augmentHitsPlot();
@@ -448,7 +459,7 @@ function drawEffectivePlots(effectiveData) {
 		}
 	
 		var regression = plotScatterEffSVG.group.selectAll('line.cat') // + key)
-			.data([{y1:a + b * 0.5, y2: a + b * 6.5}]);
+			.data([{y1:a + b * 0, y2: a + b * 7}]);
 	
 		regression.enter().append('line')
 			.attr('class', 'cat') // + key)
@@ -558,7 +569,7 @@ function augmentHitsPlot()
 			.attr("transform", "translate(0," + plotHitsSVG.dimension.innerHeight/2 + ")")
 			.call(hitXAxis.tickSize(0)) //;  //plotThroughputSVG.dimension.innerHeight));
 			.append('text')
-				.text('hit accuracy plot ('+missed+'/'+(hits+missed)+' targets missed)')
+				.text('hit accuracy plot ('+missed_total+'/'+(hits_total+missed_total)+' targets missed)')
 				.attr('x', 0)
 				.attr('y', 25)
 				.attr('fill', 'rgb(0,0,0)')
@@ -695,6 +706,14 @@ function mean(data, extractor) {
 		sum += extractor(data[i]);
 	}
 	return sum / data.length;
+}
+
+function sum(data, extractor) {
+	var sum = 0;
+	for (var i = 0; i < data.length; i++) {
+		sum += extractor(data[i]);
+	}
+	return sum;
 }
 
 function randomAB(a, b) {
