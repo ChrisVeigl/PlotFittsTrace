@@ -89,7 +89,7 @@ function initData() {
 /// file system and data processing functions
 
 function prepareSD3File(inputFilename) {
-	console.log ("processing file: ",inputFilename);
+	// console.log ("processing file: ",inputFilename);
 	try {  
 		var dat = fs.readFileSync(inputFilename, 'utf8');
 		const lines = dat.split('\n');
@@ -141,15 +141,13 @@ function processNewDataRow(fn,row)
 			// console.log('got y:', val);
 			currentPath[t].y=parseInt(val);
 		}
-		
-		// if ((parseInt(row.A) == 400) && (parseInt(row.W) == 20))    //  filter input data if desired
-		
+				
 		var add=true;
 		if ((options.amplitude !=0) && (parseInt(row.A) != options.amplitude)) add=false;
 		if ((options.width !=0) && (parseInt(row.W) != options.width)) add=false;
 		
 		if (add)
-			data.push({ A:parseInt(row.A), W:parseInt(row.W), 
+			data.push({ selectionMethod: row.SelectionMethod, A:parseInt(row.A), W:parseInt(row.W), 
 					from_x:parseInt(row.from_x), from_y:parseInt(row.from_y),
 		            to_x:parseInt(row.to_x),to_y:parseInt(row.to_y), trial:parseInt(row.Trial),
 					dp:currentPath
@@ -163,20 +161,29 @@ function processNewDataRow(fn,row)
 function createPlots(filePath) 
 {
 	// console.log ("Creating plots, trialdata len = ",data.length);
+	var fileName=filePath.replace('.sd3','');
+	var logOutput="\nResults for file: "+fileName;	
 	
 	var trialGroups = [];
 	var lastDx=0;
 	for (let t=0;t<data.length;t++) {
-
+		var adjustTiming = 0
 		var actPath = data[t].dp			
 		var pathLen = actPath.length;
+		var method=data[t].selectionMethod;
 		var fromPoint = {x: data[t].from_x, y:data[t].from_y}; // the center of the displayed starting point
 		var targetPoint = {x: data[t].to_x, y:data[t].to_y};    // the center of the displayed target point
 		var startPoint =  {x: actPath[0].x, y: actPath[0].y};      // the actual starting point of the movement (the last hit point)													  
 		var hitPoint = {x: actPath[pathLen-1].x, y: actPath[pathLen-1].y};  // the selection point of the current trial
 		
 		var trialTime = actPath[pathLen-1].t;         // timestamp of the last point (hitPoint) is the trial duration
-													  // TBD: what about dwell times?
+		if ((options.dwell == false) && (method.startsWith('DT'))) {   // remove dwell time from trial time
+			adjustTiming = parseInt(method.substring(2));
+			if (trialTime > adjustTiming) {   // sanity check
+				trialTime -= adjustTiming;
+			}
+		}
+
 		var dist = distance(targetPoint, fromPoint);  // theoretical distance (amplitude) Index of Difficulty of the given task
 		var id = shannon(dist, data[t].W); 			  // theoretical Index of Difficulty of the given task
 
@@ -191,8 +198,9 @@ function createPlots(filePath)
 		}
 	
 		console.log ("#",t ,"-trial",data[t].trial,": A=",data[t].A,", W=",data[t].W);
+		if (adjustTiming) console.log ("  removed dwell time",adjustTiming,"from trial time.");
 		console.log ("  from_x =", fromPoint.x,", from_y =",fromPoint.y, ", to_x =", targetPoint.x,", to_y =",targetPoint.y);
-		console.log ("  start_x=",startPoint.x,", start_y=",startPoint.y,", hit_x=", hitPoint.x,", hit_y=",hitPoint.y, "missed=",missed_this);
+		console.log ("  start_x=",startPoint.x,", start_y=",startPoint.y,", hit_x=", hitPoint.x,", hit_y=",hitPoint.y, ", missed=",missed_this);
 		console.log ("  trialTime=",trialTime, ", distance=",dist.toFixed(1),", ID=",id.toFixed(2)); 
 		// for (let i=0;i<pathLen;i++) console.log ("DataPoint ",i," = (",actPath[i].x,"/",actPath[i].y,"/",actPath[i].t,")");		
 
@@ -206,9 +214,11 @@ function createPlots(filePath)
 		var b=distance(hitPoint, targetPoint);
 		var c=distance(fromPoint, hitPoint);
 		var dx=(c*c -  b*b - a*a) / (2.0 * a );  
-		var Ae=a + dx + lastDx;             // effective amplitude
+		var Ae=a + dx;
+		var	AeCorr= Ae + lastDx;             // effective amplitude
 		lastDx=dx;
-		console.log(  "  dx=",dx,", Ae=",a + dx, ", AeCorr=",Ae);
+		console.log(  "  dx=",dx.toFixed(2),", Ae=",Ae.toFixed(2), ", AeCorr=",AeCorr.toFixed(2));
+		Ae=AeCorr;
 				
 		// now draw data into SVGs
 		xPosAvg.clear();
@@ -325,16 +335,18 @@ function createPlots(filePath)
 		var IDe=shannon(aeMean, We);  		// effective Index of difficulty
 		var missed_group=sum(trialGroups[group], function(d) { return d.missed; })
 		var TP=1000 * (IDe/tMean);		    // troughput for group
+		throughputs.push(TP);		
 		
-		console.log ("\n--------- Group "+ group + " results ---------");
-		console.log ("aeMean=", aeMean);
-		console.log ("sdx=", sdx);
-		console.log ("We=", We);
-		console.log ("IDe=", IDe);
-		console.log ("Error rate =", missed_group/trialGroups[group].length * 100, "%");
-		console.log ("mtMean=", tMean);
-		console.log ("TP=", TP);
-		throughputs.push(TP);
+		var logEntry  = `\n--------- Group ${group} ---------`;
+		logEntry += `\n  aeMean=${aeMean.toFixed(2)}`;
+		logEntry += `\n  sdx=${sdx.toFixed(2)}`;
+		logEntry += `\n  We=${We.toFixed(2)}`;
+		logEntry += `\n  IDe=${IDe.toFixed(2)}`;
+		logEntry += `\n  Error rate =${(missed_group/trialGroups[group].length * 100).toFixed(2)} %`;
+		logEntry += `\n  mtMean=${tMean.toFixed(2)}`;
+		logEntry += `\n  TP=${TP.toFixed(2)}`;
+		console.log(logEntry);
+		logOutput += logEntry;
 		
 		for (var i = 0; i < trialGroups[group].length; i++) {   // update IDe and TP for group members
 			var actTrial = trialGroups[group][i];
@@ -345,26 +357,28 @@ function createPlots(filePath)
 		}
 	}
 
+	drawEffectivePlots(effectiveData);
+	augmentHitsPlot();
+
 	// calculate grand mean of Throughput
 	const average = arr => arr.reduce( ( p, c ) => p + c, 0 ) / arr.length;
   	const TPe = average(throughputs);
 
-	console.log ("=====================================");
-	console.log ("total Error rate =", missed_total/(hits_total+missed_total) * 100, "%");
-	console.log ("Overall Throughput =",TPe);
-	
-	drawEffectivePlots(effectiveData);
-	augmentHitsPlot();
+	var logEntry  = "\n=====================================";
+	logEntry += `\nOverall Error rate = ${(missed_total/(hits_total+missed_total) * 100).toFixed(2)} %`;
+	logEntry += `\nOverall Throughput = ${TPe.toFixed(2)}`;
+	console.log(logEntry);
+	logOutput += logEntry;
 
-	// create the svg files
-	var fileName=filePath.replace('.sd3','');
+	// create the svg files and result log
+	fs.writeFileSync(fileName+'_results.txt', logOutput);
     fs.writeFileSync(fileName+'_hitsPlot.svg', plotHitsSVG.node.svgString()); 
     fs.writeFileSync(fileName+'_scatterPlot.svg', plotScatterSVG.node.svgString());
     fs.writeFileSync(fileName+'_positionPlot.svg', plotPositionSVG.node.svgString());
     fs.writeFileSync(fileName+'_velocityPlot.svg', plotVelocitySVG.node.svgString());
 	fs.writeFileSync(fileName+'_scatterEffPlot.svg', plotScatterEffSVG.node.svgString());
 	fs.writeFileSync(fileName+'_throughputPlot.svg', plotThroughputSVG.node.svgString());
-    console.log('Plots created!');
+    // console.log('Plots created!');
 
     var htmlContent=`
     <!DOCTYPE html>
@@ -393,7 +407,7 @@ function createPlots(filePath)
 	</html>`;
 
 	fs.writeFileSync(fileName+'_SVGView.html',htmlContent);
-	console.log('Overview html-page created!');
+	// console.log('Overview html-page created!');
 }
 
 function stripFilename(fileName) {
@@ -860,7 +874,8 @@ function addCsvFolder(dir) {
 function processCsvFiles() {
 	if (csvFileList.length == 0) return;
 	const {filePath,tempFilename} = csvFileList.shift();
-	console.log ("path=",filePath," temp=",tempFilename);
+	console.log ("\nprocessing file:",filePath); 
+	// console.log ("tempfile=",tempFilename);
 	initData();
 	fs.createReadStream(tempFilename)
 	  .pipe(csv())
@@ -882,12 +897,13 @@ program
   .version('1.0')
   .description('plotFittsTrace.mjs <filename.sd3> - generate trace data plots from GoFitts .sd3 files')
   .argument('<filename>', 'the .sd3 trace data file or directory to process')
-  .option('-p, --smoothPos [samples]', 'number of samples for smoothing position plots', '2')
-  .option('-v, --smoothVel [samples]', 'number of samples for smoothing velocity plots', '4')
-  .option('-o, --opacity [opacity]', 'opacity for ID scatter plots (0.5-1.0)', '0.8')
-  .option('-g, --group', 'color-indicate trail groups in IDeff scatter plot', false)
-  .option('-c, --captions', 'add axis captions', false)
   .option('-a, --amplitude [amplitude]', 'limit to trials with given amplitude', '0')
+  .option('-c, --captions', 'add axis captions', false)
+  .option('-d, --dwell', 'include dwell time', false)
+  .option('-g, --group', 'color-indicate trail groups in IDeff scatter plot', false)
+  .option('-o, --opacity [opacity]', 'opacity for ID scatter plots (0.5-1.0)', '0.8')
+  .option('-p, --smoothPos [samples]', 'number of samples for smoothing position plots', '1')
+  .option('-v, --smoothVel [samples]', 'number of samples for smoothing velocity plots', '1')
   .option('-w, --width [width]', 'limit to trials with given width', '0')
   ;
 
@@ -906,11 +922,12 @@ if (!fs.existsSync(options.filename)) {
 
 console.log(`Starting with the following options:`);
 console.log(`  file/folder: ${options.filename}`);
+console.log(`  captions: ${options.captions}`);
+console.log(`  dwell time included: ${options.dwell}`);
+console.log(`  group colors for IDeff: ${options.group}`);
+console.log(`  opacity: ${options.opacity}`);
 console.log(`  position-smoothing: ${options.smoothPos} samples`);
 console.log(`  velocity-smoothing: ${options.smoothVel} samples`);
-console.log(`  opacity: ${options.opacity}`);
-console.log(`  color groups: ${options.group}`);
-console.log(`  captions: ${options.captions}`);
 if (options.amplitude != 0) console.log(`  only trials with amplitude = ${options.amplitude}`);
 if (options.width != 0) console.log(`  only trials with width = ${options.width}`);
 
@@ -923,7 +940,7 @@ const stats = fs.statSync(options.filename);
 if (stats.isFile()) {
   addCsvFile(options.filename);
 } else if (stats.isDirectory()) {
-  console.log(`processing directory ${options.filename}`); 
+  // console.log(`processing directory ${options.filename}`); 
   addCsvFolder(options.filename);
 } else {
   console.log(`${options.filename} is neither a file nor a directory.`);
