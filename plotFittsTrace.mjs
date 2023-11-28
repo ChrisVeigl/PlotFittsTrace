@@ -148,8 +148,8 @@ function processNewDataRow(fn,row)
 		
 		if (add)
 			data.push({ selectionMethod: row.SelectionMethod, A:parseInt(row.A), W:parseInt(row.W), 
-					from_x:parseInt(row.from_x), from_y:parseInt(row.from_y),
-		            to_x:parseInt(row.to_x),to_y:parseInt(row.to_y), trial:parseInt(row.Trial),
+					from_x:parseFloat(row.from_x), from_y:parseFloat(row.from_y),
+		            to_x:parseFloat(row.to_x),to_y:parseFloat(row.to_y), trial:parseInt(row.Trial),
 					dp:currentPath
 				 });
 		currentPath=[];
