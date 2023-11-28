@@ -204,21 +204,30 @@ function createPlots(filePath)
 		console.log ("  trialTime=",trialTime, ", distance=",dist.toFixed(1),", ID=",id.toFixed(2)); 
 		// for (let i=0;i<pathLen;i++) console.log ("DataPoint ",i," = (",actPath[i].x,"/",actPath[i].y,"/",actPath[i].t,")");		
 
-		// reset dx buffer if a new trail sequence starts!
-		if (data[t].trial == 0) {
-			lastDx=0;
-		}
 
-		// perform adjustment for accurracy (see eg. https://www.yorku.ca/mack/FittsLawSoftware/doc/Throughput.html)
-		var a=distance(fromPoint, targetPoint);
-		var b=distance(hitPoint, targetPoint);
-		var c=distance(fromPoint, hitPoint);
-		var dx=(c*c -  b*b - a*a) / (2.0 * a );  
-		var Ae=a + dx;
-		var	AeCorr= Ae + lastDx;             // effective amplitude
-		lastDx=dx;
-		console.log(  "  dx=",dx.toFixed(2),", Ae=",Ae.toFixed(2), ", AeCorr=",AeCorr.toFixed(2));
-		Ae=AeCorr;
+		var qHit = project(startPoint, targetPoint, hitPoint);
+		var xOffset = distance(qHit, targetPoint) * sign(qHit.t - 1);
+		var yOffset = distance(qHit, hitPoint) * isLeft(startPoint, targetPoint, hitPoint);
+
+		if (options.realdistance == false) {
+			// perform adjustment for accurracy using projection to task line (see eg. https://www.yorku.ca/mack/FittsLawSoftware/doc/Throughput.html)
+			if (data[t].trial == 0) lastDx=0;   	// reset dx buffer if a new trail sequence starts!
+			var a = distance(fromPoint, targetPoint);
+			var b = distance(hitPoint, targetPoint);
+			var c = distance(fromPoint, hitPoint);
+			var dx = (c*c -  b*b - a*a) / (2.0 * a );  
+			var Ae = a + dx;
+			var	AeCorr = Ae + lastDx;   // effective amplitude
+			console.log(  "  dx=",dx.toFixed(2),", Ae=",Ae.toFixed(2), ", AeCorr=",AeCorr.toFixed(2));
+			Ae=AeCorr;
+			lastDx=dx;
+		}
+		else {
+			// perform adjustment for accurracy using actual line of movement / target offset
+			var Ae = distance(startPoint, hitPoint); // use real distance here.
+			var dx = Math.sqrt(Math.pow(xOffset, 2) + Math.pow(yOffset, 2));
+			console.log(  "  dx=",dx.toFixed(2),", Ae=",Ae.toFixed(2));
+		}			 
 				
 		// now draw data into SVGs
 		xPosAvg.clear();
@@ -241,7 +250,7 @@ function createPlots(filePath)
 			var x = distance(q, startPoint) * sign(q.t);  // note that q.t is not the time here but indicates if actPathPoint is located before startPoint or after targetPoint!
 			var y = distance(q, actPathPoint) * isLeft(startPoint, targetPoint, actPathPoint);
 
-			// TBD: describe effect of averaging for movement / velocity charts 
+			// averaging for movement / velocity charts
 			x=xPosAvg.process(x);
 			y=yPosAvg.process(y);
 			
@@ -261,10 +270,9 @@ function createPlots(filePath)
 				.attr('x2', plotPositionSVG.scaleX(x))
 				.attr('y1', plotPositionSVG.scaleY(last.y))
 				.attr('y2', plotPositionSVG.scaleY(y))
-				.attr('stroke-width', getStrokeWidthForSpeed(speed)) //0.4)
+				.attr('stroke-width', getStrokeWidthForSpeed(speed))
 				.style('stroke', getColorForSpeed(speed))
 				.style('opacity', opacity)
-				//.style('stroke-opacity', 0.5);
 
 			plotVelocitySVG.group.append('svg:line')
 				.attr('class', 'live')
@@ -283,20 +291,12 @@ function createPlots(filePath)
 			last.v = speed;
 		}
 
-		// TBD: check implications & differences of MacKenzie / Wallner implementations!
-
-		// var Ae = distance(startPoint, hitPoint); // use real distance here.
-		// var qHit = project(startPoint, targetPoint, hitPoint);
-		// var dx = distance(qHit, targetPoint) * sign(qHit.t - 1);
-		// var dy = distance(qHit, hitPoint) * isLeft(startPoint, targetPoint, hitPoint);
-
-		var qHit = project(fromPoint, targetPoint, hitPoint);
-		var dy = distance(qHit, hitPoint) * isLeft(fromPoint, targetPoint, hitPoint);
+		// draw hit (approaching line from start of movement)
 
 		plotHitsSVG.group.append('circle')
 			.attr('class', 'hit')
-			.attr('cx', plotHitsSVG.dimension.innerWidth / data[t].W  * dx)
-			.attr('cy', plotHitsSVG.dimension.innerHeight / data[t].W  * dy)
+			.attr('cx', plotHitsSVG.dimension.innerWidth / data[t].W  * xOffset)
+			.attr('cy', plotHitsSVG.dimension.innerHeight / data[t].W  * yOffset)
 			.attr('r', 3)
 			.style('fill', 'red')
 			.style('opacity', 1)		
@@ -309,7 +309,7 @@ function createPlots(filePath)
 		}
 		
 		trialGroups[groupID].push({ startPoint: startPoint, targetPoint:targetPoint, hitPoint: hitPoint, missed: missed_this,
-							   trialTime: trialTime, Ae: Ae, dx: dx, dy:dy});		
+							   trialTime: trialTime, Ae: Ae, dx: dx});		
 	}
 
 	// calculate effective values 
@@ -323,10 +323,11 @@ function createPlots(filePath)
 		}
 		
 		
-		// TBD: not sure about this strategy ... ("smaller-of"-model was used for rectagular targets ...)
-		// var xEffective = 4.133 * Math.sqrt(variance(trialGroups[group], function(d) { return d.dy; }))
-		// var yEffective = 4.133 * Math.sqrt(variance(trialGroups[group], function(d) { return d.dx; }))
-		// var We = Math.min(xEffective, yEffective); // SMALLER-OF model (MacKenzie, Buxton 92)
+		// removed calculation of We as done by Simon Wallner
+		// because the "smaller-of"-model applies to rectangular targets ...
+		//   var xEffective = 4.133 * Math.sqrt(variance(trialGroups[group], function(d) { return d.dy; }))
+		//   var yEffective = 4.133 * Math.sqrt(variance(trialGroups[group], function(d) { return d.dx; }))
+		//   var We = Math.min(xEffective, yEffective); // SMALLER-OF model (MacKenzie, Buxton 92)
 		
 		var sdx= Math.sqrt(variance(trialGroups[group], function(d) { return d.dx; }));   // standard deviation of dx in group
 		var We = 4.133 * sdx;               // effective target width
@@ -903,6 +904,7 @@ program
   .option('-g, --group', 'color-indicate trail groups in IDeff scatter plot', false)
   .option('-o, --opacity [opacity]', 'opacity for ID scatter plots (0.5-1.0)', '0.8')
   .option('-p, --smoothPos [samples]', 'number of samples for smoothing position plots', '1')
+  .option('-r, --realdistance', 'use real distances for De and We instead of projection to 1-dimensional task line', false)
   .option('-v, --smoothVel [samples]', 'number of samples for smoothing velocity plots', '1')
   .option('-w, --width [width]', 'limit to trials with given width', '0')
   ;
@@ -926,6 +928,7 @@ console.log(`  captions: ${options.captions}`);
 console.log(`  dwell time included: ${options.dwell}`);
 console.log(`  group colors for IDeff: ${options.group}`);
 console.log(`  opacity: ${options.opacity}`);
+console.log(`  real distance: ${options.realdistance}`);
 console.log(`  position-smoothing: ${options.smoothPos} samples`);
 console.log(`  velocity-smoothing: ${options.smoothVel} samples`);
 if (options.amplitude != 0) console.log(`  only trials with amplitude = ${options.amplitude}`);
