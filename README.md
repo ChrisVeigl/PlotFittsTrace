@@ -11,6 +11,7 @@ The following changes have been applied to the original source code:
   * updated to d3 version 4
   * added a .sd3 / csv data parser to process data from GoFitts
   * applied necessary changes to accept and convert trace data in .sd3 format
+  * added calculation variant for Ae/We that uses projection to task line (as applied in GoFitts Throughput class)
   * added batch processing an commandline options
 
   Many thanks to Scott MacKenzie for his continuous efforts on making Fitts' Law evaluations accessible to HCI researchers,
@@ -33,14 +34,17 @@ Arguments:
 
 Options:
   -V, --version                output the version number
-  -p, --smoothPos [samples]    number of samples for smoothing position plots (default: "2")
-  -v, --smoothVel [samples]    number of samples for smoothing velocity plots (default: "4")
-  -o, --opacity [opacity]      opacity for ID scatter plots (0.5-1.0) (default: "0.8")
-  -g, --group                  indicate groups of effective IDs by color  (default: false)
-  -c, --captions               add axis captions (default: false)
   -a, --amplitude [amplitude]  limit to trials with given amplitude (default: "0")
+  -c, --captions               add axis captions (default: false)
+  -d, --dwell                  include dwell time (default: false)
+  -g, --group                  color-indicate trail groups in IDeff scatter plot (default: false)
+  -o, --opacity [opacity]      opacity for ID scatter plots (0.5-1.0) (default: "0.8")
+  -p, --smoothPos [samples]    number of samples for smoothing position plots (default: "1")
+  -r, --realdistance           use real distances for De and We instead of projection to 1-dimensional task line (default: false)
+  -v, --smoothVel [samples]    number of samples for smoothing velocity plots (default: "1")
   -w, --width [width]          limit to trials with given width (default: "0")
   -h, --help                   display help for command
+
 ``` 
 
   
@@ -49,7 +53,7 @@ Options:
   `node plotFittsTrace.mjs myfile.sd3 -c -a=100`  processes single sd3 file, but only trials with amplitude 100, adding captions to axis 
 
 
-  `node plotFittsTrace.mjs demo --smoothPos 1 -g`  processes all files in the folder demo and its subfolders, avoiding any smoothing of the position plot data, showing colored groups
+  `node plotFittsTrace.mjs demo -p 4 -g`  processes all files in the folder demo and its subfolders, smoothing 4 samples of the position plot data, showing colored groups
 
 The latter creates following svg images:
 
