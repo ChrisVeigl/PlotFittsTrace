@@ -33,10 +33,11 @@ import os from 'os';
 
 /// constant parameters
 
-var MAX_TIME = 4000;
-var MAX_SPEED = 2.5; // pixel/ms
-var PLOTPOS_OPACITY = 0.4
-var PLOTSPEED_OPACITY = 0.4
+var MAX_TIME = 3500;
+var MAX_SPEED = 1.8; // pixel/ms
+var PLOTPOS_OPACITY = 0.2
+var PLOTSPEED_OPACITY = 0.2
+var MAX_IDE = 4;
 const FIRST_DATA_COLUMN=17
 
 /// global variables and data
@@ -77,7 +78,7 @@ function initData() {
 									{ domain:[MAX_TIME, 0], description: 'time in ms', ticks:6});
 
 	plotScatterEffSVG = initSVG ( makeDimension(500, 400, 30, 30, 30, 50),  
-									{ domain:[0, 7], description: 'IDeff - Effective Index of Difficulty', ticks:12},
+									{ domain:[0, MAX_IDE], description: 'IDeff - Effective Index of Difficulty', ticks:12},
 									{ domain:[MAX_TIME, 0], description: 'time in ms', ticks:10});
 
 	plotHitsSVG = initSVG (makeDimension(300, 300, 50, 50, 50, 50), null, null, true);  // centered SVG
@@ -462,6 +463,10 @@ function drawEffectivePlots(effectiveData) {
 	var mT = mean(effectiveData, function(d) { return d.trialTime; });
 	var mIDe = mean(effectiveData, function(d) { return d.IDe; });
 	var a = mT - b * mIDe;
+
+    console.log ("\n=====================================\n");
+    console.log ("mean Time=" +mT+ ", mean IDe="+mIDe);
+    console.log ("linear Regression: t = " +a+ " + " +b+ " * IDe");
 	
 	if (!isNaN(a))
 	{			
@@ -474,7 +479,7 @@ function drawEffectivePlots(effectiveData) {
 		}
 	
 		var regression = plotScatterEffSVG.group.selectAll('line.cat') // + key)
-			.data([{y1:a + b * 0, y2: a + b * 7}]);
+			.data([{y1:a + b * 0, y2: a + b * MAX_IDE}]);
 	
 		regression.enter().append('line')
 			.attr('class', 'cat') // + key)
